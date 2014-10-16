@@ -1,0 +1,70 @@
+#!perl
+
+# PODNAME: loggrep
+# ABSTRACT: quickly find relevant lines in a log searching by date
+
+use strict;
+use warnings;
+
+use Getopt::Long::Descriptive -all;
+
+use constant TPAT => '^\[(.*?) [A-Z]';
+
+my ( $opt, $usage ) = describe_options(
+   prog_name() . ' %o <file>',
+   [],
+   ['Grep lines out of a log.'],
+   [],
+   [ 'include|i=s@', "regex for lines to include; repeatable" ],
+   [ 'exclude|v=s@', "regex for lines to exclude; repeatable" ],
+   [ 'start|s=s',    "start timestamp; first time in log by default" ],
+   [ 'end|e=s',      "end timestamp; last time in log by default" ],
+   [ 'warn|w',       "warn of lines without dates" ],
+   [ 'die',          "throw an error upon finding a line without a date" ],
+   [
+      'date|d=s',
+      "a pattern to be used to find the timestamp in a log line; default: "
+        . TPAT,
+      { default => TPAT }
+   ],
+   [],
+   [ 'help|h|?', "print usage message and exit" ],
+);
+
+usage() if $opt->help;
+
+my @errors;
+push @errors, 'you cannot specify both --warn and --die'
+  if $opt->warn && $opt->die;
+
+require App::loggrep;
+
+my $log = shift;
+my $grepper = App::loggrep->new( $log, $opt );
+push @errors, $grepper->init;
+
+error() if @errors;
+
+$grepper->grep;
+
+# print errors and minimal usage information
+sub error {
+   return unless @errors;
+   print STDERR "ERRORS\n\n";
+   print STDERR "\t$_\n" for @errors;
+   print STDERR "\n";
+
+   print STDERR $usage->text;
+   exit;
+}
+
+# print maximal usage information
+sub usage {
+   print $usage->text;
+   print <<"END";
+
+@{[prog_name()]} facilitates search for lines in a log file within a specified date range.
+If you aren't interested in filtering by date range, use grep instead.
+END
+   exit;
+}
