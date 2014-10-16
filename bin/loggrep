@@ -11,10 +11,11 @@ use Getopt::Long::Descriptive -all;
 use constant TPAT => '^\[(.*?) [A-Z]';
 
 my ( $opt, $usage ) = describe_options(
-   prog_name() . ' %o <file>',
+   prog_name() . ' %o [<log file>]',
    [],
    ['Grep lines out of a log.'],
    [],
+   [ 'log|l=s',      "log file; may also be provided as an argument" ],
    [ 'include|i=s@', "regex for lines to include; repeatable" ],
    [ 'exclude|v=s@', "regex for lines to exclude; repeatable" ],
    [ 'start|s=s',    "start timestamp; first time in log by default" ],
@@ -39,8 +40,7 @@ push @errors, 'you cannot specify both --warn and --die'
 
 require App::loggrep;
 
-my $log = shift;
-my $grepper = App::loggrep->new( $log, $opt );
+my $grepper = App::loggrep->new( $opt->log // shift, $opt );
 push @errors, $grepper->init;
 
 error() if @errors;
