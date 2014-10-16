@@ -63,6 +63,7 @@ sub init {
    $_ = _make_rx( $_, \@errors, 'exclude' ) for @exclusions;
    $self->{exclude} = \@exclusions;
    my $start = $opt->start;
+
    if ($start) {
       my $s = str2time $start;
       push @errors, "cannot parse start time: $start" unless $s;
@@ -123,27 +124,35 @@ sub grep {
       print STDERR $msg, "\n";
       exit;
    };
-   my ( $t1, $t2 );
-   for ( 0 .. $#$lines ) {
-      $t1 = $gd->( $lines->[$_] );
-      last if $t1;
+   my $i = 0;
+   my $time_filter = $start || $end;
+   if ($time_filter) {
+      my ( $t1, $t2, $j );
+      for ( 0 .. $#$lines ) {
+         $t1 = $gd->( $lines->[$_] );
+         $j  = $_;
+         last if $t1;
+      }
+      return unless $t1;
+      for ( reverse $j .. $#$lines ) {
+         $t2 = $gd->( $lines->[$_] );
+         last if $t2;
+      }
+      $start = $t1 unless $start;
+      $end   = $t2 unless $end;
+      return unless $end >= $t1;
+      return unless $start <= $t2;
+      $i = _get_start( $lines, $start, $t1, $t2, $gd );
    }
-   for ( reverse 0 .. $#$lines ) {
-      $t2 = $gd->( $lines->[$_] );
-      last if $t2;
-   }
-   $start = $t1 unless $start;
-   $end   = $t2 unless $end;
-   return unless $end >= $t1;
-   return unless $start <= $t2;
    my @include = @$include;
    my @exclude = @$exclude;
-   my $i       = _get_start( $lines, $start, $t1, $t2, $gd );
  OUTER: while ( my $line = $lines->[ $i++ ] ) {
-      my $t = $gd->($line);
-      next unless $t;
-      last if $t > $end;
-      next if $t < $start;
+      if ($time_filter) {
+         my $t = $gd->($line);
+         next unless $t;
+         last if $t > $end;
+         next if $t < $start;
+      }
       my $good = !@include;
       for (@include) {
          if ( $line =~ $_ ) {
@@ -163,7 +172,8 @@ sub grep {
 sub _get_start {
    my ( $lines, $start, $t1, $t2, $gd ) = @_;
    return 0 if $start <= $t1;
-   my ( $s, $e ) = ( [ 0, $t1 ], [ $#$lines, $t2 ] );
+   my $lim = $#$lines;
+   my ( $s, $e ) = ( [ 0, $t1 ], [ $lim, $t2 ] );
    my $last = -1;
    {
       my $i = _guess( $s, $e, $start );
@@ -176,6 +186,7 @@ sub _get_start {
          unless ($t) {
             $i += $rev ? -1 : 1;
             return 0 unless $i;
+            return $lim if $i > $lim;
             redo;
          }
       }
