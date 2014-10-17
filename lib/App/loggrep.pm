@@ -93,9 +93,11 @@ sub init {
    @$self{qw(before after)} = ( $before, $after );
 
    my $code;
-   if ($code = $opt->execute) {
-	   $code = eval "sub { no strict; no warnings; $code }";
-	   push @errors, sprintf 'could not evaluate %s as perl: %s', $opt->execute, $@ if $@;
+   if ( $code = $opt->execute ) {
+      $code = eval "sub { no strict; no warnings; $code }";
+      push @errors, sprintf 'could not evaluate %s as perl: %s', $opt->execute,
+        $@
+        if $@;
    }
    $code //= sub { shift };
    $self->{code} = $code;
@@ -175,7 +177,7 @@ sub grep {
    my $buffer = sub {
       my ( $line, $lineno ) = @_;
       if ($abuf) {
-         print $code->($line, $lineno), "\n";
+         print $code->( $line, $lineno ), "\n";
          $previous = $lineno;
          $abuf--;
       }
@@ -186,10 +188,10 @@ sub grep {
       }
    };
    my $printline = sub {
-      my ( $line, $lineno ) = @_;
+      my ( $line, $lineno, $match ) = @_;
       print $separator, "\n" if $blank && $previous && $previous + 1 < $lineno;
       $previous = $lineno;
-      print $code->($line, $lineno), "\n";
+      print $code->( $line, $lineno, $match ), "\n";
    };
    if ($before) {
       $i -= $before;
@@ -202,7 +204,7 @@ sub grep {
          $buffer->( $line, $lineno ) && next unless $t;
          if ( $t > $end ) {
             if ( $abuf-- ) {
-               print $code->($line, $lineno), "\n";
+               print $code->( $line, $lineno ), "\n";
                next;
             }
             else {

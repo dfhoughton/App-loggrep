@@ -38,7 +38,7 @@ my ( $opt, $usage ) = describe_options(
    [ 'after|A=i',  'a number of lines after the match line to show' ],
    [
       'execute|e=s',
-      'code to call before printing a line; '
+      'perl code to call before printing a line; '
         . '@_ will contain the line, the line number, and whether it was a match;'
         . 'the value returned by this code is what will be printed'
    ],
