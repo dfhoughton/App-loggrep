@@ -92,6 +92,14 @@ sub init {
    }
    @$self{qw(before after)} = ( $before, $after );
 
+   my $code;
+   if ($code = $opt->execute) {
+	   $code = eval "sub { no strict; no warnings; $code }";
+	   push @errors, sprintf 'could not evaluate %s as perl: %s', $opt->execute, $@ if $@;
+   }
+   $code //= sub { shift };
+   $self->{code} = $code;
+
    return @errors;
 }
 
@@ -121,8 +129,8 @@ sub grep {
    my $self = shift;
    my ( $start, $end, $lines, $include, $exclude, $date ) =
      @$self{qw(start end lines include exclude date)};
-   my ( $blank, $warn, $die, $separator, $before, $after ) =
-     @$self{qw(blank warn die separator before after)};
+   my ( $blank, $warn, $die, $separator, $before, $after, $code ) =
+     @$self{qw(blank warn die separator before after code)};
    return unless @$lines;
    my $quiet = !( $warn || $die );
    $separator //= "" if $blank;
@@ -167,7 +175,7 @@ sub grep {
    my $buffer = sub {
       my ( $line, $lineno ) = @_;
       if ($abuf) {
-         print $line, "\n";
+         print $code->($line, $lineno), "\n";
          $previous = $lineno;
          $abuf--;
       }
@@ -181,7 +189,7 @@ sub grep {
       my ( $line, $lineno ) = @_;
       print $separator, "\n" if $blank && $previous && $previous + 1 < $lineno;
       $previous = $lineno;
-      print $line, "\n";
+      print $code->($line, $lineno), "\n";
    };
    if ($before) {
       $i -= $before;
@@ -190,11 +198,11 @@ sub grep {
  OUTER: while ( my $line = $lines->[$i] ) {
       my $lineno = $i++;
       if ($time_filter) {
-         my $t = $gd->($line);
+         my $t = $gd->($line) // 0;
          $buffer->( $line, $lineno ) && next unless $t;
          if ( $t > $end ) {
             if ( $abuf-- ) {
-               print $line, "\n";
+               print $code->($line, $lineno), "\n";
                next;
             }
             else {
@@ -215,7 +223,7 @@ sub grep {
          $buffer->( $line, $lineno ) && next OUTER if $line =~ $_;
       }
       $printline->(@$_) for @bbuf;
-      $printline->( $line, $lineno );
+      $printline->( $line, $lineno, 1 );
       splice @bbuf, 0, scalar @bbuf;
       $abuf = $after;
    }

@@ -30,11 +30,20 @@ my ( $opt, $usage ) = describe_options(
    [],
    [ 'blank|b', 'print a blank separator line between non-adjacent log lines' ],
    [ 'separator|sep=s', 'a separator to print between non-adjacent blocks' ],
-   [ 'context|C=i', 'a number of lines before and after the match line to show' ],
+   [
+      'context|C=i',
+      'a number of lines before and after the match line to show'
+   ],
    [ 'before|B=i', 'a number of lines before the match line to show' ],
-   [ 'after|A=i', 'a number of lines after the match line to show' ],
-   [ 'warn|w',  "warn of lines without dates" ],
-   [ 'die',     "throw an error upon finding a line without a date" ],
+   [ 'after|A=i',  'a number of lines after the match line to show' ],
+   [
+      'execute|e=s',
+      'code to call before printing a line; '
+        . '@_ will contain the line, the line number, and whether it was a match;'
+        . 'the value returned by this code is what will be printed'
+   ],
+   [ 'warn|w', "warn of lines without dates" ],
+   [ 'die',    "throw an error upon finding a line without a date" ],
    [],
    [ 'help|h|?', "print usage message and exit" ],
 );
