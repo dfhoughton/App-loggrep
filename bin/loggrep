@@ -18,16 +18,23 @@ my ( $opt, $usage ) = describe_options(
    [ 'log|l=s',      "log file; may also be provided as an argument" ],
    [ 'include|i=s@', "regex for lines to include; repeatable" ],
    [ 'exclude|v=s@', "regex for lines to exclude; repeatable" ],
-   [ 'start|s=s',    "start timestamp; first time in log by default" ],
-   [ 'end|e=s',      "end timestamp; last time in log by default" ],
-   [ 'warn|w',       "warn of lines without dates" ],
-   [ 'die',          "throw an error upon finding a line without a date" ],
+   [ 'quote|q',   'do not treat expressions to include or exclude as regexes' ],
+   [ 'start|s=s', "start timestamp; first time in log by default" ],
+   [ 'end|e=s',   "end timestamp; last time in log by default" ],
    [
       'date|d=s',
       "a pattern to be used to find the timestamp in a log line; default: "
         . TPAT,
       { default => TPAT }
    ],
+   [],
+   [ 'blank|b', 'print a blank separator line between non-adjacent log lines' ],
+   [ 'separator|sep=s', 'a separator to print between non-adjacent blocks' ],
+   [ 'context|C=i', 'a number of lines before and after the match line to show' ],
+   [ 'before|B=i', 'a number of lines before the match line to show' ],
+   [ 'after|A=i', 'a number of lines after the match line to show' ],
+   [ 'warn|w',  "warn of lines without dates" ],
+   [ 'die',     "throw an error upon finding a line without a date" ],
    [],
    [ 'help|h|?', "print usage message and exit" ],
 );
@@ -65,6 +72,9 @@ sub usage {
 
 @{[prog_name()]} facilitates search for lines in a log file within a specified date range.
 If you aren't interested in filtering by date range, use grep instead.
+
+If multiple expression to include are provided, a line which matches any will be printed.
+Likewise, if a line matches any of the exclusion expressions, it will be excluded.
 END
    exit;
 }

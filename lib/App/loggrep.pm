@@ -57,11 +57,12 @@ sub init {
    }
    $self->{date} = _make_rx( $opt->date, \@errors, 'date' );
    my @inclusions = @{ $opt->include // [] };
-   $_ = _make_rx( $_, \@errors, 'inclusion' ) for @inclusions;
-   $self->{include} = \@inclusions;
+   my $quote = $opt->quote;
+   $_ = _make_rx( $_, \@errors, 'inclusion', $quote ) for @inclusions;
+   $self->{include} = [ sort { length($a) <=> length($b) } @inclusions ];
    my @exclusions = @{ $opt->exclude // [] };
-   $_ = _make_rx( $_, \@errors, 'exclude' ) for @exclusions;
-   $self->{exclude} = \@exclusions;
+   $_ = _make_rx( $_, \@errors, 'exclude', $quote ) for @exclusions;
+   $self->{exclude} = [ sort { length($a) <=> length($b) } @exclusions ];
    my $start = $opt->start;
 
    if ($start) {
@@ -77,18 +78,31 @@ sub init {
    }
    push @errors, 'you are not filtering at all'
      unless @inclusions || @exclusions || $start || $end;
-   $self->{warn} = $opt->warn;
-   $self->{die}  = $opt->die;
+
+   $self->{blank}     = $opt->blank || defined $opt->separator;
+   $self->{separator} = $opt->separator;
+   $self->{warn}      = $opt->warn;
+   $self->{die}       = $opt->die;
+   my ( $before, $after ) = ( 0, 0 );
+   if ( $opt->context || $opt->before || $opt->after ) {
+      $before = $opt->context // 0;
+      $before = $opt->before if $opt->before && $opt->before > $before;
+      $after = $opt->context // 0;
+      $after = $opt->after if $opt->after && $opt->after > $after;
+   }
+   @$self{qw(before after)} = ( $before, $after );
+
    return @errors;
 }
 
 # parse a regular expression parameter, registering any errors
 sub _make_rx {
-   my ( $rx, $errors, $type ) = @_;
+   my ( $rx, $errors, $type, $quote ) = @_;
    unless ($rx) {
       push @$errors, "inadequate $type pattern";
       return;
    }
+   $rx = quotemeta $rx if $quote;
    eval { $rx = qr/$rx/ };
    if ($@) {
       push @$errors, "bad $type regex: $rx; error: $@";
@@ -105,10 +119,13 @@ Perform the actual grep. Lines are printed to STDOUT.
 
 sub grep {
    my $self = shift;
-   my ( $start, $end, $lines, $include, $exclude, $date, $warn, $die ) =
-     @$self{qw(start end lines include exclude date warn die)};
+   my ( $start, $end, $lines, $include, $exclude, $date ) =
+     @$self{qw(start end lines include exclude date)};
+   my ( $blank, $warn, $die, $separator, $before, $after ) =
+     @$self{qw(blank warn die separator before after)};
    return unless @$lines;
    my $quiet = !( $warn || $die );
+   $separator //= "" if $blank;
    my $gd = sub {
       my $l = shift;
       if ( $l =~ $date ) {
@@ -146,12 +163,45 @@ sub grep {
    }
    my @include = @$include;
    my @exclude = @$exclude;
- OUTER: while ( my $line = $lines->[ $i++ ] ) {
+   my ( $previous, @bbuf, $abuf );
+   my $buffer = sub {
+      my ( $line, $lineno ) = @_;
+      if ($abuf) {
+         print $line, "\n";
+         $previous = $lineno;
+         $abuf--;
+      }
+      else {
+         my $pair = [ $line, $lineno ];
+         push @bbuf, $pair;
+         shift @bbuf if @bbuf > $before;
+      }
+   };
+   my $printline = sub {
+      my ( $line, $lineno ) = @_;
+      print $separator, "\n" if $blank && $previous && $previous + 1 < $lineno;
+      $previous = $lineno;
+      print $line, "\n";
+   };
+   if ($before) {
+      $i -= $before;
+      $i = 0 if $before < 0;
+   }
+ OUTER: while ( my $line = $lines->[$i] ) {
+      my $lineno = $i++;
       if ($time_filter) {
          my $t = $gd->($line);
-         next unless $t;
-         last if $t > $end;
-         next if $t < $start;
+         $buffer->( $line, $lineno ) && next unless $t;
+         if ( $t > $end ) {
+            if ( $abuf-- ) {
+               print $line, "\n";
+               next;
+            }
+            else {
+               last;
+            }
+         }
+         $buffer->( $line, $lineno ) && next if $t < $start;
       }
       my $good = !@include;
       for (@include) {
@@ -160,11 +210,14 @@ sub grep {
             last;
          }
       }
-      next unless $good;
+      $buffer->( $line, $lineno ) && next unless $good;
       for (@exclude) {
-         next OUTER if $line =~ $_;
+         $buffer->( $line, $lineno ) && next OUTER if $line =~ $_;
       }
-      print $line, "\n";
+      $printline->(@$_) for @bbuf;
+      $printline->( $line, $lineno );
+      splice @bbuf, 0, scalar @bbuf;
+      $abuf = $after;
    }
 }
 
@@ -174,12 +227,22 @@ sub _get_start {
    return 0 if $start <= $t1;
    my $lim = $#$lines;
    my ( $s, $e ) = ( [ 0, $t1 ], [ $lim, $t2 ] );
-   my $last = -1;
+   my ( $last, $revcount ) = ( -1, 0 );
    {
       my $i = _guess( $s, $e, $start );
       return $i if $i == $s->[0];
       my $rev = $last == $i;
       $last = $i;
+      if ($rev) {    # if we find ourselves looping; bail out
+         $revcount++;
+         if ( $revcount > 1 ) {
+            --$i if $i;
+            return $i;
+         }
+      }
+      else {
+         $revcount = 0;
+      }
       my $t;
       {
          $t = $gd->( $lines->[$i] );
@@ -197,7 +260,10 @@ sub _get_start {
       else {
          $e = [ $i, $t ];
       }
-      return $i - 1 if $s->[0] == $e->[0];
+      if ( $s->[0] == $e->[0] ) {
+         --$i if $i;
+         return $i;
+      }
       redo;
    }
 }
