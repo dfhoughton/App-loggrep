@@ -95,9 +95,12 @@ sub init {
    my $code;
    if ( $code = $opt->execute ) {
       $code = eval "sub { no strict; no warnings; $code }";
-      push @errors, sprintf 'could not evaluate %s as perl: %s', $opt->execute,
-        $@
-        if $@;
+      if ( my $e = $@ ) {
+	 $e =~ s/(.*?) at \(eval \d+\).*/$1/s;
+         push @errors, sprintf 'could not evaluate "%s" as perl: %s',
+           $opt->execute,
+           $e;
+      }
    }
    $code //= sub { shift };
    $self->{code} = $code;
