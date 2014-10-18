@@ -28,6 +28,9 @@ my ( $opt, $usage ) = describe_options(
       { default => TPAT }
    ],
    [],
+   [ 'warn|w',     "warn of lines without dates" ],
+   [ 'die',        "throw an error upon finding a line without a date" ],
+   [],
    [ 'blank|b', 'print a blank separator line between non-adjacent log lines' ],
    [ 'separator|sep=s', 'a separator to print between non-adjacent blocks' ],
    [
@@ -36,14 +39,22 @@ my ( $opt, $usage ) = describe_options(
    ],
    [ 'before|B=i', 'a number of lines before the match line to show' ],
    [ 'after|A=i',  'a number of lines after the match line to show' ],
+   [],
    [
-      'execute|e=s',
+      'time|t=s',
+      'perl code to convert a log line into a Unix timestamp; '
+        . 'this is an alternative to --date'
+   ],
+   [
+      'exec|E=s',
       'perl code to call before printing a line; '
         . '@_ will contain the line, the line number, and whether it was a match;'
-        . 'the value returned by this code is what will be printed'
+        . ' the value returned by this code is what will be printed'
    ],
-   [ 'warn|w', "warn of lines without dates" ],
-   [ 'die',    "throw an error upon finding a line without a date" ],
+   [
+      'module|M=s@',
+      'Perl module to load for use by --time or --exec code; repeatable'
+   ],
    [],
    [ 'help|h|?', "print usage message and exit" ],
 );
@@ -84,6 +95,15 @@ If you aren't interested in filtering by date range, use grep instead.
 
 If multiple expression to include are provided, a line which matches any will be printed.
 Likewise, if a line matches any of the exclusion expressions, it will be excluded.
+
+@{[prog_name()]} uses Date::Parse to convert a timestamp into a Unix timestap (a number of
+seconds since time zero). Date::Parse is pretty clever, but if it doesn't understand your
+timestamps you'll have to use the --time option. If you want to use a particular module,
+like Date::Parse or DateTime, in your --time code, you'll have to use or require it inside
+your code or load it in with the --module option like so
+
+  -M Date::Parse --time '(\$m=shift)=~s/(.*?) foo/\$1/;\$m eq "bar" ? 1 : str2time \$m'
+
 END
    exit;
 }

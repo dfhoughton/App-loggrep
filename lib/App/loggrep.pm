@@ -92,18 +92,39 @@ sub init {
    }
    @$self{qw(before after)} = ( $before, $after );
 
-   my $code;
-   if ( $code = $opt->execute ) {
-      $code = eval "sub { no strict; no warnings; $code }";
-      if ( my $e = $@ ) {
-	 $e =~ s/(.*?) at \(eval \d+\).*/$1/s;
-         push @errors, sprintf 'could not evaluate "%s" as perl: %s',
-           $opt->execute,
-           $e;
+   {
+	   package __evaled;
+      my $code;
+      my $majv = int $];
+      my $minv = int( 1000 * ( $] - $majv ) );
+      for my $m ( @{ $opt->module // [] } ) {
+         eval "use $_" for @{ $opt->module // [] };
+         if ($@) {
+            push @errors, "could not load $m";
+         }
+      }
+      if ( $code = $opt->exec ) {
+         $code = eval "sub { use v$majv.$minv; no strict; no warnings; $code }";
+         if ( my $e = $@ ) {
+            $e =~ s/(.*?) at \(eval \d+\).*/$1/s;
+            push @errors, sprintf 'could not evaluate "%s" as perl: %s',
+              $opt->exec,
+              $e;
+         }
+      }
+      $code //= sub { shift };
+      $self->{code} = $code;
+      if ( $code = $opt->time ) {
+         $code = eval "sub { use v$majv.$minv; no strict; no warnings; $code }";
+         if ( my $e = $@ ) {
+            $e =~ s/(.*?) at \(eval \d+\).*/$1/s;
+            push @errors, sprintf 'could not evaluate "%s" as perl: %s',
+              $opt->exec,
+              $e;
+         }
+	 $self->{time} = $code;
       }
    }
-   $code //= sub { shift };
-   $self->{code} = $code;
 
    return @errors;
 }
@@ -132,8 +153,9 @@ Perform the actual grep. Lines are printed to STDOUT.
 
 sub grep {
    my $self = shift;
-   my ( $start, $end, $lines, $include, $exclude, $date ) =
-     @$self{qw(start end lines include exclude date)};
+   my ( $start, $end, $lines, $include, $exclude, $date, $time ) =
+     @$self{qw(start end lines include exclude date time)};
+     $time //= sub { str2time $1 if shift =~ $date };
    my ( $blank, $warn, $die, $separator, $before, $after, $code ) =
      @$self{qw(blank warn die separator before after code)};
    return unless @$lines;
@@ -141,10 +163,8 @@ sub grep {
    $separator //= "" if $blank;
    my $gd = sub {
       my $l = shift;
-      if ( $l =~ $date ) {
-         my $t = str2time $1;
-         return $t if $t;
-      }
+      my $t = $time->($l);
+      return $t if $t;
       return if $quiet;
       my $msg = qq(could not find date in "$l");
       if ($warn) {
