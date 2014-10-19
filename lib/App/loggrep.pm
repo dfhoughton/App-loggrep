@@ -92,38 +92,34 @@ sub init {
    }
    @$self{qw(before after)} = ( $before, $after );
 
-   {
-	   package __evaled;
-      my $code;
-      my $majv = int $];
-      my $minv = int( 1000 * ( $] - $majv ) );
+   {    # code options live in their own namespace
+
+      package __evaled;
       for my $m ( @{ $opt->module // [] } ) {
          eval "use $_" for @{ $opt->module // [] };
          if ($@) {
             push @errors, "could not load $m";
          }
       }
-      if ( $code = $opt->exec ) {
-         $code = eval "sub { use v$majv.$minv; no strict; no warnings; $code }";
+      my $evaler = sub {
+         my ( $orig, $option ) = shift;
+         return unless $orig;
+         my $majv = int $];
+         my $minv = int( 1000 * ( $] - $majv ) );
+         my $code =
+           eval "sub { use v$majv.$minv; no strict; no warnings; $orig }";
          if ( my $e = $@ ) {
             $e =~ s/(.*?) at \(eval \d+\).*/$1/s;
-            push @errors, sprintf 'could not evaluate "%s" as perl: %s',
-              $opt->exec,
+            push @errors,
+              sprintf 'bad option: --%s; could not evaluate "%s" as perl: %s',
+              $option,
+              $orig,
               $e;
          }
-      }
-      $code //= sub { shift };
-      $self->{code} = $code;
-      if ( $code = $opt->time ) {
-         $code = eval "sub { use v$majv.$minv; no strict; no warnings; $code }";
-         if ( my $e = $@ ) {
-            $e =~ s/(.*?) at \(eval \d+\).*/$1/s;
-            push @errors, sprintf 'could not evaluate "%s" as perl: %s',
-              $opt->exec,
-              $e;
-         }
-	 $self->{time} = $code;
-      }
+         return $code;
+      };
+      $self->{code} = $evaler->( $opt->exec, 'exec' ) // sub { shift };
+      $self->{time} = $evaler->( $opt->time, 'time' );
    }
 
    return @errors;
@@ -155,7 +151,7 @@ sub grep {
    my $self = shift;
    my ( $start, $end, $lines, $include, $exclude, $date, $time ) =
      @$self{qw(start end lines include exclude date time)};
-     $time //= sub { str2time $1 if shift =~ $date };
+   $time //= sub { str2time $1 if shift =~ $date };
    my ( $blank, $warn, $die, $separator, $before, $after, $code ) =
      @$self{qw(blank warn die separator before after code)};
    return unless @$lines;
@@ -173,6 +169,28 @@ sub grep {
       }
       print STDERR $msg, "\n";
       exit;
+   };
+   my @include = @$include;
+   my @exclude = @$exclude;
+   my ( $previous, @bbuf, $abuf );
+   my $buffer = sub {
+      my ( $line, $lineno ) = @_;
+      if ($abuf) {
+         print $code->( $line, $lineno ), "\n";
+         $previous = $lineno;
+         $abuf--;
+      }
+      elsif ($before) {
+         my $pair = [ $line, $lineno ];
+         push @bbuf, $pair;
+         shift @bbuf if @bbuf > $before;
+      }
+   };
+   my $printline = sub {
+      my ( $line, $lineno, $match ) = @_;
+      print $separator, "\n" if $blank && $previous && $previous + 1 < $lineno;
+      $previous = $lineno;
+      print $code->( $line, $lineno, $match ), "\n";
    };
    my $i = 0;
    my $time_filter = $start || $end;
@@ -194,37 +212,18 @@ sub grep {
       return unless $start <= $t2;
       $i = _get_start( $lines, $start, $t1, $t2, $gd );
    }
-   my @include = @$include;
-   my @exclude = @$exclude;
-   my ( $previous, @bbuf, $abuf );
-   my $buffer = sub {
-      my ( $line, $lineno ) = @_;
-      if ($abuf) {
-         print $code->( $line, $lineno ), "\n";
-         $previous = $lineno;
-         $abuf--;
-      }
-      else {
-         my $pair = [ $line, $lineno ];
-         push @bbuf, $pair;
-         shift @bbuf if @bbuf > $before;
-      }
-   };
-   my $printline = sub {
-      my ( $line, $lineno, $match ) = @_;
-      print $separator, "\n" if $blank && $previous && $previous + 1 < $lineno;
-      $previous = $lineno;
-      print $code->( $line, $lineno, $match ), "\n";
-   };
    if ($before) {
       $i -= $before;
-      $i = 0 if $before < 0;
+      $i = 0 if $i < 0;
    }
  OUTER: while ( my $line = $lines->[$i] ) {
       my $lineno = $i++;
       if ($time_filter) {
          my $t = $gd->($line) // 0;
-         $buffer->( $line, $lineno ) && next unless $t;
+         unless ($t) {
+            $buffer->( $line, $lineno );
+            next;
+         }
          if ( $t > $end ) {
             if ( $abuf-- ) {
                print $code->( $line, $lineno ), "\n";
@@ -234,7 +233,10 @@ sub grep {
                last;
             }
          }
-         $buffer->( $line, $lineno ) && next if $t < $start;
+         if ( $t < $start ) {
+            $buffer->( $line, $lineno );
+            next;
+         }
       }
       my $good = !@include;
       for (@include) {
@@ -245,11 +247,14 @@ sub grep {
       }
       $buffer->( $line, $lineno ) && next unless $good;
       for (@exclude) {
-         $buffer->( $line, $lineno ) && next OUTER if $line =~ $_;
+         if ( $line =~ $_ ) {
+            $buffer->( $line, $lineno );
+            next OUTER;
+         }
       }
       $printline->(@$_) for @bbuf;
       $printline->( $line, $lineno, 1 );
-      splice @bbuf, 0, scalar @bbuf;
+      splice @bbuf, 0, scalar @bbuf if $before;
       $abuf = $after;
    }
 }
