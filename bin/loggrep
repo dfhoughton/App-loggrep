@@ -28,8 +28,8 @@ my ( $opt, $usage ) = describe_options(
       { default => TPAT }
    ],
    [],
-   [ 'warn|w',     "warn of lines without dates" ],
-   [ 'die',        "throw an error upon finding a line without a date" ],
+   [ 'warn|w', "warn of lines without dates" ],
+   [ 'die',    "throw an error upon finding a line without a date" ],
    [],
    [ 'blank|b', 'print a blank separator line between non-adjacent log lines' ],
    [ 'separator|sep=s', 'a separator to print between non-adjacent blocks' ],
@@ -57,15 +57,16 @@ my ( $opt, $usage ) = describe_options(
    ],
    [],
    [ 'help|h|?', "print usage message and exit" ],
+   [ 'version',  'print ' . prog_name() . "'s version number" ],
 );
 
 usage() if $opt->help;
+require App::loggrep;
+print( prog_name() . " $App::loggrep::VERSION\n" ), exit if $opt->version;
 
 my @errors;
 push @errors, 'you cannot specify both --warn and --die'
   if $opt->warn && $opt->die;
-
-require App::loggrep;
 
 my $grepper = App::loggrep->new( $opt->log // shift, $opt );
 push @errors, $grepper->init;

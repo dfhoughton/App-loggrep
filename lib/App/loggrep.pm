@@ -2,6 +2,7 @@ package App::loggrep;
 
 # ABSTRACT: quickly find relevant lines in a log searching by date
 
+$App::loggrep::VERSION //= 'dev';
 use strict;
 use warnings;
 
