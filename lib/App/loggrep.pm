@@ -64,14 +64,14 @@ sub init {
    my @exclusions = @{ $opt->exclude // [] };
    $_ = _make_rx( $_, \@errors, 'exclude', $quote ) for @exclusions;
    $self->{exclude} = [ sort { length($a) <=> length($b) } @exclusions ];
-   my $start = $opt->start;
+   my $start = $opt->start // $opt->moment;
 
    if ($start) {
       my $s = str2time $start;
       push @errors, "cannot parse start time: $start" unless $s;
       $self->{start} = $s;
    }
-   my $end = $opt->end;
+   my $end = $opt->end // $opt->moment;
    if ($end) {
       my $s = str2time $end;
       push @errors, "cannot parse end time: $end" unless $s;

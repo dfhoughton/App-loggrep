@@ -3,6 +3,12 @@
 # PODNAME: loggrep
 # ABSTRACT: quickly find relevant lines in a log searching by date
 
+=head1 SYNOPSIS
+
+  loggrep --start 'May 12, 2012' --end 'May 13, 2012' -i foo -v bar --log /var/log/food/log.log
+
+=cut
+
 use strict;
 use warnings;
 
@@ -21,6 +27,11 @@ my ( $opt, $usage ) = describe_options(
    [ 'quote|q',   'do not treat expressions to include or exclude as regexes' ],
    [ 'start|s=s', "start timestamp; first time in log by default" ],
    [ 'end|e=s',   "end timestamp; last time in log by default" ],
+   [
+      'moment|m=s',
+      "set start and end to be a single timestamp; "
+        . "overridden by --start and --end"
+   ],
    [
       'date|d=s',
       "a pattern to be used to find the timestamp in a log line; default: "
