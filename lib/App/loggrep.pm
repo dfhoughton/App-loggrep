@@ -58,11 +58,15 @@ sub init {
    }
    $self->{date} = _make_rx( $opt->date, \@errors, 'date' );
    my @inclusions = @{ $opt->include // [] };
-   my $quote = $opt->quote;
-   $_ = _make_rx( $_, \@errors, 'inclusion', $quote ) for @inclusions;
+   my $insensitive = $opt->case_insensitive;
+   $_ = _make_rx( $_, \@errors, 'inclusion', 0, $insensitive ) for @inclusions;
+   push @inclusions, _make_rx( $_, \@errors, 'inclusion', 1, $insensitive )
+     for @{ $opt->include_quoted // [] };
    $self->{include} = [ sort { length($a) <=> length($b) } @inclusions ];
    my @exclusions = @{ $opt->exclude // [] };
-   $_ = _make_rx( $_, \@errors, 'exclude', $quote ) for @exclusions;
+   $_ = _make_rx( $_, \@errors, 'exclude', 0, $insensitive ) for @exclusions;
+   push @exclusions, _make_rx( $_, \@errors, 'exclude', 1, $insensitive )
+     for @{ $opt->exclude_quoted // [] };
    $self->{exclude} = [ sort { length($a) <=> length($b) } @exclusions ];
    my $start = $opt->start // $opt->moment;
 
@@ -112,8 +116,7 @@ sub init {
          if ( my $e = $@ ) {
             $e =~ s/(.*?) at \(eval \d+\).*/$1/s;
             push @errors,
-              sprintf
-              'bad option: --%s; could not evaluate "%s" as perl: %s',
+              sprintf 'bad option: --%s; could not evaluate "%s" as perl: %s',
               $option,
               $orig,
               $e;
@@ -129,13 +132,13 @@ sub init {
 
 # parse a regular expression parameter, registering any errors
 sub _make_rx {
-   my ( $rx, $errors, $type, $quote ) = @_;
+   my ( $rx, $errors, $type, $quote, $insensitive ) = @_;
    unless ($rx) {
       push @$errors, "inadequate $type pattern";
       return;
    }
    $rx = quotemeta $rx if $quote;
-   eval { $rx = qr/$rx/ };
+   eval { $rx = $insensitive ? qr/$rx/i : qr/$rx/ };
    if ($@) {
       push @$errors, "bad $type regex: $rx; error: $@";
       return;

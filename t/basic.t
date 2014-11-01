@@ -18,7 +18,6 @@ use Capture::Tiny qw(capture_stdout);
    }
 }
 
-
 my ( undef, $filename ) = tempfile();
 END { unlink $filename }
 
@@ -54,25 +53,28 @@ $grepped = lgrep( before => 1 );
 like $grepped, qr/^f/, "single line exact times; --before 1";
 $grepped = lgrep( before => 2 );
 like $grepped, qr/^e/, "single line exact times; --before 2";
-$grepped = lgrep(after => 1);
+$grepped = lgrep( after => 1 );
 like $grepped, qr/10$/, "single line exact times; --after 1";
-$grepped = lgrep(start => '9:12:00', end => '9:12:00', context => 2);
-like $grepped, qr/^c/, "single line exact times; context gives correct first line";
-like $grepped, qr/f$/, "single line exact times; context gives correct last line";
-$grepped = lgrep(start=>'9:12:15', end=>'9:12:35');
+$grepped = lgrep( start => '9:12:00', end => '9:12:00', context => 2 );
+like $grepped, qr/^c/,
+  "single line exact times; context gives correct first line";
+like $grepped, qr/f$/,
+  "single line exact times; context gives correct last line";
+$grepped = lgrep( start => '9:12:15', end => '9:12:35' );
 my @lines = lines($grepped);
 is scalar @lines, 2, 'correct number of lines with inexact ends';
 is $lines[0], '9:12:20', 'correct first line';
 is $lines[1], '9:12:30', 'correct second line';
-$grepped = lgrep(start=>'9:11:50',end=>'9:13:00',context=>1);
+$grepped = lgrep( start => '9:11:50', end => '9:13:00', context => 1 );
 @lines = lines($grepped);
-is scalar @lines, 12, 'correct number of lines with inexact time and --context 2';
-is $lines[0], 'd', 'correct first line';
+is scalar @lines, 12,
+  'correct number of lines with inexact time and --context 2';
+is $lines[0],  'd', 'correct first line';
 is $lines[-1], 'g', 'correct last line';
-$grepped = lgrep(start=>'9:11:50',end=>'9:13:00',blank=>1);
+$grepped = lgrep( start => '9:11:50', end => '9:13:00', blank => 1 );
 @lines = lines($grepped);
 is scalar @lines, 9, 'correct number of lines with inexact time and --blank';
-is $lines[0], '9:12:00', 'correct first line';
+is $lines[0],  '9:12:00', 'correct first line';
 is $lines[-1], '9:12:50', 'correct last line';
 
 data(<<'END');
@@ -81,17 +83,29 @@ CAT
 END
 delete @basic{qw(start end)};
 
-$grepped = lgrep(include=>['cat']);
-print "grepped: $grepped\n";
+$grepped = lgrep( include => ['cat'] );
 @lines = lines($grepped);
 is scalar @lines, 1, 'correct number of lines with case-sensitive include';
 like $grepped, qr/cat/, 'correct line with case-sensitive include';
+$grepped = lgrep( include => ['cat'], case_insensitive => 1 );
+@lines = lines($grepped);
+is scalar @lines, 2, 'correct number of lines with case-insensitive include';
+like $grepped, qr/cat.*CAT/s, 'correct lines with case-insensitive include';
+$grepped = lgrep( exclude => ['cat'] );
+@lines = lines($grepped);
+is scalar @lines, 1, 'correct number of lines with case-sensitive exclude';
+like $grepped, qr/CAT/, 'correct lines with case-sensitive exclude';
+$grepped = lgrep( case_insensitive => 1, exclude => ['cat'] );
+@lines = lines($grepped);
+is scalar @lines, 0, 'correct number of lines with case-insensitive exclude';
 
 done_testing();
 
 sub lines {
-	my @lines = shift =~ /^.*$/mg;
-	return @lines;
+   my $text = shift;
+   return () unless length $text;
+   my @lines = $text =~ /^.*$/mg;
+   return @lines;
 }
 
 sub count_lines { scalar lines(shift) }
@@ -107,8 +121,8 @@ sub lgrep {
 }
 
 sub data {
-	my $data = shift;
-	open my $fh, '>', $filename;
-	print $fh $data;
-	close $fh;
+   my $data = shift;
+   open my $fh, '>', $filename;
+   print $fh $data;
+   close $fh;
 }
