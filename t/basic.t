@@ -18,7 +18,18 @@ use Capture::Tiny qw(capture_stdout);
    }
 }
 
-my $data = <<'END';
+
+my ( undef, $filename ) = tempfile();
+END { unlink $filename }
+
+my %basic = (
+   start => '9:12:01',
+   end   => '9:12:01',
+   date  => '^(\d++(?::\d++)*+)',
+   log   => $filename
+);
+
+data(<<'END');
 a
 b
 c
@@ -36,18 +47,6 @@ f
 g
 h
 END
-
-my ( $fh, $filename ) = tempfile();
-END { unlink $filename }
-print $fh $data;
-close $fh;
-
-my %basic = (
-   start => '9:12:01',
-   end   => '9:12:01',
-   date  => '^(\d++(?::\d++)*+)',
-   log   => $filename
-);
 
 my $grepped = lgrep();
 is $grepped, '9:12:01', "single line exact times";
@@ -76,6 +75,18 @@ is scalar @lines, 9, 'correct number of lines with inexact time and --blank';
 is $lines[0], '9:12:00', 'correct first line';
 is $lines[-1], '9:12:50', 'correct last line';
 
+data(<<'END');
+cat
+CAT
+END
+delete @basic{qw(start end)};
+
+$grepped = lgrep(include=>['cat']);
+print "grepped: $grepped\n";
+@lines = lines($grepped);
+is scalar @lines, 1, 'correct number of lines with case-sensitive include';
+like $grepped, qr/cat/, 'correct line with case-sensitive include';
+
 done_testing();
 
 sub lines {
@@ -93,4 +104,11 @@ sub lgrep {
    my $stdout = capture_stdout { $grepper->grep };
    $stdout =~ s/^\s+|\s+$//g;
    return $stdout;
+}
+
+sub data {
+	my $data = shift;
+	open my $fh, '>', $filename;
+	print $fh $data;
+	close $fh;
 }

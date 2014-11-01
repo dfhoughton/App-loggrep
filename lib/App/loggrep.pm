@@ -112,7 +112,8 @@ sub init {
          if ( my $e = $@ ) {
             $e =~ s/(.*?) at \(eval \d+\).*/$1/s;
             push @errors,
-              sprintf 'bad option: --%s; could not evaluate "%s" as perl: %s',
+              sprintf
+              'bad option: --%s; could not evaluate "%s" as perl: %s',
               $option,
               $orig,
               $e;
@@ -189,7 +190,8 @@ sub grep {
    };
    my $printline = sub {
       my ( $line, $lineno, $match ) = @_;
-      print $separator, "\n" if $blank && $previous && $previous + 1 < $lineno;
+      print $separator, "\n"
+        if $blank && $previous && $previous + 1 < $lineno;
       $previous = $lineno;
       print $code->( $line, $lineno, $match ), "\n";
    };
@@ -217,7 +219,7 @@ sub grep {
       $i -= $before;
       $i = 0 if $i < 0;
    }
- OUTER: while ( my $line = $lines->[$i] ) {
+   while ( my $line = $lines->[$i] ) {
       my $lineno = $i++;
       if ($time_filter) {
          my $t = $gd->($line) // 0;
@@ -246,17 +248,23 @@ sub grep {
             last;
          }
       }
-      $buffer->( $line, $lineno ) && next unless $good;
-      for (@exclude) {
-         if ( $line =~ $_ ) {
-            $buffer->( $line, $lineno );
-            next OUTER;
+      if ($good) {
+         for (@exclude) {
+            if ( $line =~ $_ ) {
+               undef $good;
+               last;
+            }
          }
       }
-      $printline->(@$_) for @bbuf;
-      $printline->( $line, $lineno, 1 );
-      splice @bbuf, 0, scalar @bbuf if $before;
-      $abuf = $after;
+      if ($good) {
+         $printline->(@$_) for @bbuf;
+         $printline->( $line, $lineno, 1 );
+         splice @bbuf, 0, scalar @bbuf if $before;
+         $abuf = $after;
+      }
+      else {
+         $buffer->( $line, $lineno );
+      }
    }
 }
 
