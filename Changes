@@ -1,5 +1,6 @@
 Revision history for App::loggrep
 
 {{$NEXT}}
+ * fixed --separator bug
 
 0.001     2014-11-02 12:45:16-05:00 America/New_York

@@ -9,13 +9,9 @@ A command line utility to facilitate finding particular lines in a log file.
 Installation Instructions
 -------------------------
 
-If you have cpanminus, you can install it like so
+If you have cpan you can install it like so
 
-    cpanm App-loggrep-0.001.tar.gz
-
-If you don't have cpanminus, you can install that like so:
-
-    cpan App::cpanminus
+    cpanm App::loggrep
 
 If you don't have cpan you likely don't have Perl, so you should attend to that first.
 

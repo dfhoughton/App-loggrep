@@ -161,6 +161,7 @@ sub grep {
      @$self{qw(blank warn die separator before after code)};
    return unless @$lines;
    my $quiet = !( $warn || $die );
+   $blank ||= defined $separator;
    $separator //= "" if $blank;
    my $gd = sub {
       my $l = shift;
